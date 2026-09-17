@@ -229,6 +229,12 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
 </style>
 </head>
 <body>
+<div id="cloudStatus" class="note" style="margin:10px 0"></div>
+<section class="card" style="margin:12px 0;padding:16px">
+  <h3>Progression des utilisateurs</h3>
+  <p class="note">Les comptes connectés peuvent consulter les progressions enregistrées.</p>
+  <div id="allProgressions"><p class="note">Connectez-vous pour afficher les progressions.</p></div>
+</section>
 <div class="wrap">
 
   <header class="topbar">
@@ -428,7 +434,7 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
         <div id="coordBody"></div>
         <div class="row" style="margin-top:16px">
           <button class="btn" id="btnGeneral">Générer le fichier Excel général</button>
-          <button class="btn ghost" id="btnAddLocal">Ajouter mes données à la base partagée</button>
+          <button class="btn ghost" id="btnAddLocal">Ajouter les données de cet appareil</button>
           <button class="btn danger" id="btnCoordReset">Vider la base consolidée</button>
           <button class="btn ghost" data-back="scLogin">Retour</button>
         </div>
@@ -469,8 +475,6 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -485,26 +489,6 @@ var COORD_PIN = "ENR2026";
 var LS = "SUIVI_ENR_V2_";
 var MAX_H = 12;            /* durée maximale déclarable pour une séance */
 
-/* ------------------ Firebase (base partagée) ------------------ */
-var FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBoaj6zAy2T_mKpOxn2v9gXJQ-TPSiDQ8A",
-  authDomain: "suivi-cours-enr.firebaseapp.com",
-  projectId: "suivi-cours-enr",
-  storageBucket: "suivi-cours-enr.firebasestorage.app",
-  messagingSenderId: "636714603223",
-  appId: "1:636714603223:web:6d84379df2ca3c516ed692"
-};
-var db=null, CLOUD_OK=false;
-try{
-  if(typeof firebase!=="undefined" && firebase.initializeApp){
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db=firebase.firestore();
-    try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e0){}
-    CLOUD_OK=true;
-  }
-}catch(eFirebase){ CLOUD_OK=false; db=null; }
-function cloudTS(){ try{ return firebase.firestore.FieldValue.serverTimestamp(); }catch(e){ return null; } }
-
 /* ------------------ Catalogue des programmes ------------------ */
 function ec(t,q){ return {t:t, q:q}; }
 function genUE(code,n){
@@ -515,41 +499,11 @@ function genSem(codes){ return codes.map(function(c,i){ return genUE(c,i+1); });
 
 var PROG = {
   "1": { label:"Niveau 1",
-    "1": {code:"S1", ues:[
-      {code:"ENR111", nom:"Mathématiques 1", ecs:[ec("Analyse 1",20), ec("Algèbre 1",20)]},
-      {code:"ENR121", nom:"Physique 1", ecs:[ec("Mécanique du point",15), ec("Statique (Mécanique rationnelle)",15), ec("Optique géométrique et ondulatoire",15)]},
-      {code:"ENR131", nom:"Informatique 1", ecs:[ec("Logique combinatoire et algorithmique",15), ec("Programmation C+",15)]},
-      {code:"ENR141", nom:"Chimie 1", ecs:[ec("Chimie générale",20), ec("Chimie organique",20)]},
-      {code:"SHS151", nom:"Sciences humaines et sociales 1", ecs:[ec("Formation bilingue",10), ec("Éthique et Droit de l'Homme",10), ec("EPS",10)]},
-      {code:"ENR161", nom:"Électronique et Électrotechnique 1", ecs:[ec("Électronique",20), ec("Électrotechnique",20)]}
-    ]},
-    "2": {code:"S2", ues:[
-      {code:"ENR112", nom:"Mathématiques 2", ecs:[ec("Analyse 2",20), ec("Algèbre 2",20), ec("Statistique",20)]},
-      {code:"ENR122", nom:"Physique 2", ecs:[ec("Électromagnétisme",20), ec("Électrocinétique",20), ec("Électrostatique",20)]},
-      {code:"ENR132", nom:"Technologie et équipements des ENR", ecs:[ec("Technologie et équipements des ENR 1",25), ec("Technologie et équipements des ENR 2",10)]},
-      {code:"ENR142", nom:"Chimie 2", ecs:[ec("Chimie physique et analytique",15), ec("TP chimie et analyses des données",10), ec("Chimie verte et catalyseur",20)]},
-      {code:"ENR152", nom:"Thermodynamique", ecs:[ec("Thermodynamique",20)]},
-      {code:"ENR162", nom:"Dessin industriel", ecs:[ec("Dessin industriel",15)]}
-    ]}
-  },
+    "1": {code:"S1", ues:genSem(["ENR111","ENR121","ENR131","ENR141","ENR151","ENR161"])},
+    "2": {code:"S2", ues:genSem(["ENR112","ENR122","ENR132","ENR142","ENR152","ENR162"])} },
   "2": { label:"Niveau 2",
-    "1": {code:"S3", ues:[
-      {code:"ENR213", nom:"Mathématiques 3", ecs:[ec("Modélisation des systèmes énergétiques",15), ec("Optimisations et méthodes numériques",15)]},
-      {code:"ENR223", nom:"Physique 3", ecs:[ec("Mécanique du solide",20), ec("TP de physique",5), ec("Électronique de puissance",15)]},
-      {code:"ENR233", nom:"Électricité 2", ecs:[ec("Schéma et commande électrique",15), ec("Automatisme et régulation",15), ec("Machine électrique",15)]},
-      {code:"ENR243", nom:"Énergétique 1", ecs:[ec("Thermodynamique",15), ec("Transfert thermique",20), ec("Mécanique des fluides",20)]},
-      {code:"SHS253", nom:"Sciences humaines et sociales 2", ecs:[ec("Formation bilingue",10), ec("Économie des entreprises",10), ec("EPS",10)]},
-      {code:"ENR263", nom:"Matériaux et mécanique des matériaux", ecs:[ec("Sciences des matériaux",10), ec("Mécanique des matériaux",10)]}
-    ]},
-    "2": {code:"S4", ues:[
-      {code:"ENR214", nom:"Informatique 2", ecs:[ec("Programmation et système de monitoring (SCADA et ERP)",20)]},
-      {code:"ENR224", nom:"Construction mécanique", ecs:[ec("Construction mécanique",20)]},
-      {code:"ENR234", nom:"Machines hydraulique et thermique", ecs:[ec("Équipements hydrauliques et turbomachine",20), ec("Moteur à combustion",15)]},
-      {code:"ENR244", nom:"Énergétique 2", ecs:[ec("Cinétique et combustion",15), ec("Centrales thermiques et cogénération",20)]},
-      {code:"ENR254", nom:"DAO et insertion socio-professionnelle", ecs:[ec("DAO",15), ec("Projet d'insertion socio-professionnelle",50)]},
-      {code:"ENR264", nom:"Météorologie", ecs:[ec("Station météorologique et analyse des données météorologiques",20)]}
-    ]}
-  },
+    "1": {code:"S3", ues:genSem(["ENR213","ENR223","ENR233","ENR243","ENR253","ENR263"])},
+    "2": {code:"S4", ues:genSem(["ENR214","ENR224","ENR234","ENR244","ENR254","ENR264"])} },
   "3": { label:"Niveau 3", parcours:{
     "3ER": { nom:"Efficacité Énergétique et Énergies Renouvelables",
       "1":{code:"S5", ues:[
@@ -600,32 +554,33 @@ function round2(n){ return Math.round(n*100)/100; }
 function fmtH(n){ return (Math.round(n*100)/100).toString().replace(".",",")+" h"; }
 
 function userKey(){ return LS+"USER_"+slug(S.user.nom)+"_"+slug(S.user.prenom); }
-function declRef(){ return db.collection("declarations").doc(userKey()); }
-function refreshCurrentScreen(){
-  if($("scEC").classList.contains("on")){ renderEC(); }
-  else if($("scUE").classList.contains("on")){ renderUE(); }
-}
+function cloudUserId(){ return auth && auth.currentUser ? auth.currentUser.uid : userKey(); }
 function save(){
   try{ localStorage.setItem(userKey(), JSON.stringify(S.data)); }
   catch(e){ toast("Attention: la sauvegarde locale est indisponible sur cet appareil."); }
-  if(CLOUD_OK && S.user){
-    declRef().set({
-      nom:S.user.nom, prenom:S.user.prenom, grade:S.user.grade,
-      data:S.data, majLe:cloudTS()
-    }, {merge:true}).catch(function(){ /* hors ligne: Firestore resynchronisera dès le retour du réseau */ });
+  if(CLOUD_OK && db && auth && auth.currentUser && S.user){
+    db.collection("declarations").doc(auth.currentUser.uid).set({
+      uid:auth.currentUser.uid, nom:S.user.nom||"", prenom:S.user.prenom||"", grade:S.user.grade||"", data:S.data, majLe:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true}).catch(function(e){ console.error(e); toast("Sauvegarde cloud impossible. Vérifiez les règles Firestore."); });
   }
 }
 function load(){
   try{ var r=localStorage.getItem(userKey()); S.data=r?JSON.parse(r):{}; }catch(e){ S.data={}; }
-  if(CLOUD_OK && S.user){
-    declRef().get().then(function(doc){
-      if(doc.exists && doc.data() && doc.data().data){
-        S.data=doc.data().data;
-        try{ localStorage.setItem(userKey(), JSON.stringify(S.data)); }catch(e){}
-        refreshCurrentScreen();
-      }
-    }).catch(function(){ /* pas de réseau: la copie locale de cet appareil est utilisée */ });
+  if(CLOUD_OK && db && auth && auth.currentUser && S.user){
+    db.collection("declarations").doc(auth.currentUser.uid).get().then(function(snap){
+      if(snap.exists){ var d=snap.data(); if(d.data){ S.data=d.data; try{ localStorage.setItem(userKey(),JSON.stringify(S.data)); }catch(e){} if(typeof render==='function') render(); } }
+    }).catch(function(e){ console.error(e); });
   }
+}
+function loadAllProgressions(){
+  var box=$("allProgressions"); if(!box || !CLOUD_OK || !db || !auth || !auth.currentUser) return;
+  box.innerHTML="<p class='note'>Chargement des progressions…</p>";
+  db.collection("declarations").orderBy("majLe","desc").get().then(function(q){
+    if(q.empty){ box.innerHTML="<p class='note'>Aucune progression enregistrée.</p>"; return; }
+    var html="<div class='tablewrap'><table><thead><tr><th>Utilisateur</th><th>Grade</th><th>Progression</th><th>Mise à jour</th></tr></thead><tbody>";
+    q.forEach(function(doc){ var d=doc.data()||{}, data=d.data||{}, total=0, done=0; Object.keys(data).forEach(function(k){ var r=data[k]||{}; Object.keys(r.s||{}).forEach(function(n){ total+=1; if(r.s[n] && (r.s[n].done || num(r.s[n].h,0)>0)) done+=1; }); }); var pct=total?Math.round(done*100/total):0; var date=d.majLe&&d.majLe.toDate?d.majLe.toDate().toLocaleString("fr-FR"):"—"; html+="<tr><td>"+esc((d.nom||"")+" "+(d.prenom||""))+"</td><td>"+esc(d.grade||"—")+"</td><td>"+pct+" %</td><td>"+esc(date)+"</td></tr>"; });
+    box.innerHTML=html+"</tbody></table></div>";
+  }).catch(function(e){ console.error(e); box.innerHTML="<p class='note'>Impossible de charger les progressions : "+esc(e.message||e)+"</p>"; });
 }
 
 function ecKey(niv,parc,sem,ueCode,i){ return niv+"|"+(parc||"-")+"|"+sem+"|"+ueCode+"|"+i; }
@@ -1219,40 +1174,9 @@ function autoSend(silent){
 $("btnSend").addEventListener("click", function(){ autoSend(false); });
 
 /* ------------------ 8. Coordination ------------------ */
-var coordCache=[], coordUnsub=null;
+function coordLoad(){ try{ var r=localStorage.getItem(LS+"COORD"); return r?JSON.parse(r):[]; }catch(e){ return []; } }
+function coordSave(rows){ try{ localStorage.setItem(LS+"COORD", JSON.stringify(rows)); }catch(e){} }
 function rkey(r){ return [r.nom,r.prenom,r.niveau,r.parcours,r.semestre,r.ecCode].join("||").toUpperCase(); }
-function rid(r){ var s=rkey(r).replace(/[^A-Z0-9]+/g,"_").replace(/^_+|_+$/g,""); return s.substring(0,300)||"ROW"; }
-function coordSaveLocal(rows){ try{ localStorage.setItem(LS+"COORD", JSON.stringify(rows)); }catch(e){} }
-function coordLoadLocal(){ try{ var r=localStorage.getItem(LS+"COORD"); return r?JSON.parse(r):[]; }catch(e){ return []; } }
-function coordLoad(){ return CLOUD_OK ? coordCache.slice() : coordLoadLocal(); }
-function coordSave(rows){
-  coordSaveLocal(rows); coordCache=rows;
-  if(!CLOUD_OK) return;
-  rows.forEach(function(r){
-    var ref=db.collection("coordination").doc(rid(r));
-    db.runTransaction(function(tx){
-      return tx.get(ref).then(function(doc){
-        if(!doc.exists || num(doc.data().atteint,0)<=num(r.atteint,0)) tx.set(ref, r);
-      });
-    }).catch(function(){ /* synchro différée si hors ligne */ });
-  });
-}
-function coordClearCloud(){
-  if(!CLOUD_OK) return Promise.resolve();
-  return db.collection("coordination").get().then(function(snap){
-    var batch=db.batch();
-    snap.forEach(function(doc){ batch.delete(doc.ref); });
-    return batch.commit();
-  }).catch(function(){});
-}
-function coordListen(){
-  if(!CLOUD_OK || coordUnsub) return;
-  coordUnsub = db.collection("coordination").onSnapshot(function(snap){
-    var rows=[]; snap.forEach(function(doc){ rows.push(doc.data()); });
-    coordCache=rows; coordSaveLocal(rows);
-    if($("coordPanel").style.display==="block") renderCoord();
-  }, function(){ /* écoute interrompue: on retombe sur la copie locale */ });
-}
 function mergeRows(base, inc){
   var map={};
   base.forEach(function(r){ map[rkey(r)]=r; });
@@ -1269,13 +1193,12 @@ $("btnCoordOk").addEventListener("click", function(){
   $("coordErr").classList.remove("on");
   $("coordLock").style.display="none";
   $("coordPanel").style.display="block";
-  coordListen();
   renderCoord();
 });
 function renderCoord(){
   var rows=coordLoad();
   $("coordStat").textContent = rows.length
-    ? rows.length+" ligne(s) consolidée(s)"+(CLOUD_OK?" (base partagée, mise à jour en temps réel).":" sur cet appareil.")
+    ? rows.length+" ligne(s) consolidée(s) sur cet appareil."
     : "Base consolidée vide, importez des fichiers ou collez un bloc de données.";
   var g={}, h="";
   rows.forEach(function(r){ (g[groupKey(r)]=g[groupKey(r)]||[]).push(r); });
@@ -1343,12 +1266,8 @@ $("btnGeneral").addEventListener("click", function(){
 });
 $("btnCoordReset").addEventListener("click", function(){
   confirmBox("Vider la base consolidée",
-    "Toutes les lignes consolidées, sur tous les appareils connectés, seront supprimées. Cette action est irréversible.",
-    function(){
-      coordClearCloud().then(function(){
-        coordCache=[]; coordSaveLocal([]); renderCoord(); toast("Base consolidée vidée.");
-      });
-    }, "Vider");
+    "Toutes les lignes consolidées sur cet appareil seront supprimées. Cette action est irréversible.",
+    function(){ coordSave([]); renderCoord(); toast("Base consolidée vidée."); }, "Vider");
 });
 
 /* ------------------ 9. Sortie ------------------ */
@@ -1372,6 +1291,14 @@ $("btnLogout").addEventListener("click", function(){
   $("who").innerHTML=""; $("fNom").value=""; $("fPrenom").value=""; $("fGrade").value="";
   show("scLogin");
 });
+
+if(auth){
+  auth.onAuthStateChanged(function(user){
+    var st=$("cloudStatus");
+    if(user){ st.textContent="Compte connecté : "+(user.email||user.uid); loadAllProgressions(); }
+    else { st.textContent="Aucun compte Firebase connecté. Les données restent locales sur cet appareil."; }
+  });
+}
 
 /* Installation hors ligne (uniquement en hébergement autonome) */
 try{
