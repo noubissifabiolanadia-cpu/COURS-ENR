@@ -523,6 +523,13 @@ var MAIL      = "noubissifabiolanadia@gmail.com";
 var ENDPOINT  = "https://formsubmit.co/ajax/" + MAIL;   /* transmission automatique */
 var COORD_PIN = "ENR2026";
 var ADMIN_EMAIL = "admin@gmail.com";
+/* Identité admin reconnue directement sur l'écran de connexion enseignant
+   (nom, prénom, grade) : quiconque se connecte avec ces informations obtient
+   les droits d'administration (déverrouillage, suppression, etc.) sans passer
+   par l'écran Coordination. */
+var ADMIN_NOM    = "admin";
+var ADMIN_PRENOM = "ENR";
+var ADMIN_GRADE  = "Pr";
 var auth = null;
 var LS = "SUIVI_ENR_V2_";
 var MAX_H = 12;            /* durée maximale déclarable pour une séance */
@@ -549,8 +556,21 @@ try{
 function cloudTS(){ try{ return firebase.firestore.FieldValue.serverTimestamp(); }catch(e){ return null; } }
 
 function isAdminUser(){
-  return !!(auth && auth.currentUser &&
-    String(auth.currentUser.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  /* Voie 1 (historique, conservée) : connecté via l'écran Coordination avec
+     le compte e-mail administrateur. */
+  if(auth && auth.currentUser &&
+     String(auth.currentUser.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()){
+    return true;
+  }
+  /* Voie 2 (nouvelle) : connecté normalement comme enseignant, avec le nom,
+     le prénom et le grade désignés comme administrateur. */
+  if(S.user &&
+     slug(S.user.nom)===slug(ADMIN_NOM) &&
+     slug(S.user.prenom)===slug(ADMIN_PRENOM) &&
+     slug(S.user.grade)===slug(ADMIN_GRADE)){
+    return true;
+  }
+  return false;
 }
 
 /* ------------------ Catalogue des programmes ------------------ */
