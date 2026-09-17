@@ -240,6 +240,7 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
     </div>
     <div class="actions">
       <div class="who" id="who"></div>
+      <button class="btn ghost sm" id="btnProg" style="display:none">Progressions</button>
       <button class="btn ghost sm" id="btnHome" style="display:none">Accueil</button>
       <button class="btn ghost sm" id="btnQuit" style="display:none">Quitter</button>
     </div>
@@ -272,14 +273,19 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
           <option value="Dr">Dr, Chargé de cours</option>
           <option value="Pr">Pr, Professeur</option>
         </select>
+        <label for="fPass">Mot de passe</label>
+        <input type="password" id="fPass" placeholder="Choisissez-le lors de votre première connexion" autocomplete="current-password" maxlength="60">
         <div class="err" id="loginErr"></div>
         <div class="row" style="margin-top:18px; justify-content:space-between">
           <button class="btn" id="btnLogin">Accéder à la plateforme</button>
           <button class="btn ghost sm" id="btnCoord">Espace coordination</button>
+          <button class="btn ghost sm" id="btnAdmOpen">Espace administrateur</button>
         </div>
         <p class="note" style="margin-top:14px">
-          Vos déclarations sont conservées sur cet appareil. Vous pouvez fermer la page et reprendre plus tard
-          avec les mêmes nom et prénom. Un bouton de sauvegarde vous permet aussi de conserver un fichier de secours.
+          Ce mot de passe (6 caractères au moins) vous permet de retrouver toute votre progression depuis
+          n'importe quel appareil : saisissez-le une première fois pour le créer, puis resaisissez-le à chaque
+          nouvelle connexion, y compris après avoir perdu ou changé de téléphone. Notez-le quelque part : sans lui,
+          seul l'administrateur peut vous aider à repartir avec une fiche libérée.
         </p>
       </div>
     </div>
@@ -452,39 +458,41 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
     </div>
   </section>
 
+  <!-- 10. PROGRESSIONS ET ADMINISTRATION -->
+  <section class="screen" id="scProg">
+    <div class="card">
+      <h2 id="progTitle">Progressions du département</h2>
+      <div id="admWho" class="note"></div>
+
+      <div id="admCreds" style="margin-top:10px">
+        <div class="grid2">
+          <div>
+            <label for="admMail">Adresse de l'administrateur</label>
+            <input type="text" id="admMail" placeholder="admin@gmail.com" autocomplete="username">
+          </div>
+          <div>
+            <label for="admPass">Mot de passe</label>
+            <input type="password" id="admPass" placeholder="Mot de passe administrateur" autocomplete="current-password">
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm" id="btnAdmLogin">Connexion administrateur</button>
+        <button class="btn ghost sm" id="btnAdmLogout" style="display:none">Fermer la session administrateur</button>
+        <button class="btn ghost sm" id="btnProgRefresh">Actualiser</button>
+        <button class="btn ghost sm" id="btnProgBack">Retour</button>
+      </div>
+      <div class="err" id="admErr"></div>
+
+      <p class="note" id="progressionMessage" style="margin-top:12px">Chargement des progressions…</p>
+      <div id="progressionTableContainer"></div>
+      <div id="admDetail" style="display:none; margin-top:18px"></div>
+    </div>
+  </section>
+
   <div class="sign">Université de Bertoua, Faculté des Sciences, Département de l'Énergie Renouvelable</div>
 </div>
-
-<section class="card" id="allProgressions" style="margin-top:20px;">
-  <h2>Progression des enseignants</h2>
-  <p class="sub">Consultation des heures déclarées par l'ensemble du département. L'administrateur dispose en outre des droits de modification, de remise à zéro et de suppression.</p>
-
-  <div id="admWho" class="note"></div>
-
-  <div id="admCreds" style="margin-top:10px">
-    <div class="grid2">
-      <div>
-        <label for="admMail">Adresse de l'administrateur</label>
-        <input type="text" id="admMail" placeholder="admin@gmail.com" autocomplete="username">
-      </div>
-      <div>
-        <label for="admPass">Mot de passe</label>
-        <input type="password" id="admPass" placeholder="Mot de passe administrateur" autocomplete="current-password">
-      </div>
-    </div>
-  </div>
-
-  <div class="row" style="margin-top:12px">
-    <button class="btn sm" id="btnAdmLogin">Connexion administrateur</button>
-    <button class="btn ghost sm" id="btnAdmLogout" style="display:none">Fermer la session administrateur</button>
-    <button class="btn ghost sm" id="btnProgRefresh">Actualiser</button>
-  </div>
-  <div class="err" id="admErr"></div>
-
-  <p class="note" id="progressionMessage" style="margin-top:12px">Chargement des progressions…</p>
-  <div id="progressionTableContainer"></div>
-  <div id="admDetail" style="display:none; margin-top:18px"></div>
-</section>
 
 <div class="powered">POWERED BY ING Fabiola NOUBISSI</div>
 
@@ -640,6 +648,11 @@ function round2(n){ return Math.round(n*100)/100; }
 function fmtH(n){ return (Math.round(n*100)/100).toString().replace(".",",")+" h"; }
 
 function userKey(){ return LS+"USER_"+slug(S.user.nom)+"_"+slug(S.user.prenom); }
+function acctEmail(nom, prenom, grade){
+  /* Identifiant technique du compte, dérivé du nom/prénom/grade : il ne s'agit pas
+     d'une adresse réelle, seul Firebase Authentication l'utilise en interne. */
+  return "u."+slug(nom).toLowerCase()+"."+slug(prenom).toLowerCase()+"."+slug(grade||"x").toLowerCase()+"@compte.enr-bertoua.local";
+}
 function declRef(){ return db.collection("declarations").doc(userKey()); }
 function refreshCurrentScreen(){
   if($("scEC").classList.contains("on")){ renderEC(); }
@@ -649,10 +662,20 @@ function save(){
   try{ localStorage.setItem(userKey(), JSON.stringify(S.data)); }
   catch(e){ toast("Attention: la sauvegarde locale est indisponible sur cet appareil."); }
   if(CLOUD_OK && S.user){
-    declRef().set({
+    var payload = {
       nom:S.user.nom, prenom:S.user.prenom, grade:S.user.grade,
       data:S.data, majLe:cloudTS()
-    }, {merge:true}).catch(function(){ /* hors ligne: Firestore resynchronisera dès le retour du réseau */ });
+    };
+    /* L'appareil qui écrit s'identifie: les règles Firestore n'acceptent la
+       mise à jour d'une fiche que depuis l'appareil qui l'a créée ou déverrouillée
+       par l'administrateur. */
+    if(auth && auth.currentUser) payload.uid = auth.currentUser.uid;
+    declRef().set(payload, {merge:true}).catch(function(error){
+      if(error && error.code==="permission-denied"){
+        toast("Cette fiche est associée à un autre appareil. Demandez à l'administrateur d'autoriser cet appareil.");
+      }
+      /* sinon, hors ligne: Firestore resynchronisera dès le retour du réseau */
+    });
   }
 }
 function load(){
@@ -708,6 +731,7 @@ function show(id){
   var logged = !!S.user && id!=="scLogin" && id!=="scCoord";
   $("btnHome").style.display = logged?"inline-flex":"none";
   $("btnQuit").style.display = logged?"inline-flex":"none";
+  if($("btnProg")) $("btnProg").style.display = (!!S.user && id!=="scLogin" && id!=="scProg")?"inline-flex":"none";
 }
 function toast(msg){
   var t=$("toast"); t.textContent=msg; t.classList.add("on");
@@ -742,16 +766,7 @@ var FRISE = '<svg class="frise" viewBox="0 0 660 92" role="img" aria-label="Symb
 + '</g></svg>';
 
 /* ------------------ 1. Identification ------------------ */
-$("btnLogin").addEventListener("click", function(){
-  var nom=$("fNom").value.trim(), pre=$("fPrenom").value.trim(), gr=$("fGrade").value;
-  var e=$("loginErr"), msgs=[];
-  if(!nom) msgs.push("le nom");
-  if(!pre) msgs.push("le prénom");
-  if(!gr)  msgs.push("le grade");
-  if(msgs.length){ e.textContent="ERREUR: identification incomplète. Veuillez renseigner "+msgs.join(", ")+"."; e.classList.add("on"); return; }
-  if(nom.length<2 || pre.length<2){ e.textContent="ERREUR: le nom et le prénom doivent comporter au moins deux caractères."; e.classList.add("on"); return; }
-  if(!/[A-Za-zÀ-ÿ]/.test(nom) || !/[A-Za-zÀ-ÿ]/.test(pre)){ e.textContent="ERREUR: nom ou prénom invalide."; e.classList.add("on"); return; }
-  e.classList.remove("on");
+function finishLogin(nom, pre, gr){
   S.user={nom:nom, prenom:pre, grade:gr};
   load();
   var full=S.user.grade+" "+S.user.nom+" "+S.user.prenom;
@@ -760,8 +775,58 @@ $("btnLogin").addEventListener("click", function(){
   $("hello2").textContent="Bienvenue "+full+". Veuillez choisir le Semestre en Cours.";
   $("friseHolder").innerHTML=FRISE;
   show("scFiliere");
+}
+$("btnLogin").addEventListener("click", function(){
+  var nom=$("fNom").value.trim(), pre=$("fPrenom").value.trim(), gr=$("fGrade").value;
+  var pass=$("fPass").value;
+  var e=$("loginErr"), msgs=[];
+  if(!nom) msgs.push("le nom");
+  if(!pre) msgs.push("le prénom");
+  if(!gr)  msgs.push("le grade");
+  if(!pass) msgs.push("le mot de passe");
+  if(msgs.length){ e.textContent="ERREUR: identification incomplète. Veuillez renseigner "+msgs.join(", ")+"."; e.classList.add("on"); return; }
+  if(nom.length<2 || pre.length<2){ e.textContent="ERREUR: le nom et le prénom doivent comporter au moins deux caractères."; e.classList.add("on"); return; }
+  if(!/[A-Za-zÀ-ÿ]/.test(nom) || !/[A-Za-zÀ-ÿ]/.test(pre)){ e.textContent="ERREUR: nom ou prénom invalide."; e.classList.add("on"); return; }
+  if(pass.length<6){ e.textContent="ERREUR: le mot de passe doit comporter au moins six caractères."; e.classList.add("on"); return; }
+  e.classList.remove("on");
+
+  if(!CLOUD_OK || !auth){
+    /* pas de base partagée disponible: on continue en local, comme auparavant */
+    finishLogin(nom, pre, gr);
+    return;
+  }
+
+  var btn=$("btnLogin"); btn.disabled=true;
+  var email=acctEmail(nom, pre, gr);
+  auth.signInWithEmailAndPassword(email, pass).then(function(){
+    btn.disabled=false;
+    finishLogin(nom, pre, gr);
+  }).catch(function(error){
+    if(error && error.code==="auth/user-not-found"){
+      auth.createUserWithEmailAndPassword(email, pass).then(function(){
+        btn.disabled=false;
+        finishLogin(nom, pre, gr);
+      }).catch(function(err2){
+        btn.disabled=false;
+        e.textContent="ERREUR: création du compte impossible ("+(err2.message||err2)+").";
+        e.classList.add("on");
+      });
+    } else if(error && error.code==="auth/wrong-password"){
+      btn.disabled=false;
+      e.textContent="ERREUR: mot de passe incorrect pour ce nom et ce prénom.";
+      e.classList.add("on");
+    } else if(error && (error.code==="auth/network-request-failed" || error.code==="auth/timeout")){
+      btn.disabled=false;
+      toast("Connexion réseau indisponible : poursuite en mode hors ligne, sans synchronisation.");
+      finishLogin(nom, pre, gr);
+    } else {
+      btn.disabled=false;
+      e.textContent="ERREUR: connexion impossible ("+(error&&(error.message||error))+").";
+      e.classList.add("on");
+    }
+  });
 });
-["fNom","fPrenom","fGrade"].forEach(function(id){
+["fNom","fPrenom","fGrade","fPass"].forEach(function(id){
   $(id).addEventListener("input", function(){ $("loginErr").classList.remove("on"); });
   $(id).addEventListener("change", function(){ $("loginErr").classList.remove("on"); });
   $(id).addEventListener("keydown", function(ev){ if(ev.key==="Enter") $("btnLogin").click(); });
@@ -1409,7 +1474,10 @@ $("btnBack2").addEventListener("click", function(){ show("scFiliere"); });
 $("btnHome").addEventListener("click", function(){ show("scFiliere"); });
 $("btnLogout").addEventListener("click", function(){
   S.user=null; S.data={}; S.ue=null;
-  $("who").innerHTML=""; $("fNom").value=""; $("fPrenom").value=""; $("fGrade").value="";
+  $("who").innerHTML=""; $("fNom").value=""; $("fPrenom").value=""; $("fGrade").value=""; $("fPass").value="";
+  if(auth && auth.currentUser){
+    auth.signOut().then(function(){ if(typeof admEnsureSession==="function") admEnsureSession(); }).catch(function(){});
+  }
   show("scLogin");
 });
 
@@ -1457,6 +1525,13 @@ function recHours(r){
   if(r && r.s) Object.keys(r.s).forEach(function(n){ t+=num(r.s[n].h,0); });
   return round2(t);
 }
+function recLocked(r){
+  if(!r) return false;
+  if(r.fin) return true;
+  var lock=false;
+  if(r.s) Object.keys(r.s).forEach(function(n){ if(r.s[n].locked) lock=true; });
+  return lock;
+}
 function docTotals(d){
   var data=(d && d.data) || {}, done=0, quota=0, nbEC=0, nbFin=0;
   Object.keys(data).forEach(function(k){
@@ -1489,11 +1564,11 @@ function renderAdminState(){
   if($("btnAdmLogout")) $("btnAdmLogout").style.display = adm ? "inline-flex" : "none";
   if(who){
     who.innerHTML = adm
-      ? '<span class="badge done">Administrateur</span> Session ouverte au nom de <b>'+esc(u.email)+'</b>. '
-        +'Vous pouvez modifier, remettre à zéro et supprimer les progressions de tous les enseignants.'
-      : '<span class="badge wait">Consultation</span> Vous consultez les progressions du département. '
-        +'Seul l\'administrateur peut modifier la déclaration d\'un autre enseignant.';
+      ? '<span class="badge done">Administrateur</span> Session ouverte au nom de <b>'+esc(u.email)+'</b>.'
+      : "";
   }
+  var t=$("progTitle");
+  if(t) t.textContent = adm ? "Administration des progressions" : "Progressions du département";
 }
 
 /* ------------------ Chargement des progressions ------------------ */
@@ -1566,6 +1641,8 @@ function renderAdmDetail(){
    +'<div class="row" style="margin:10px 0">'
    +'<button class="btn ghost sm" data-act="closeDetail">Fermer le détail</button>'
    +(admIsMine(ADM.openId)?' <button class="btn sm" data-act="mySaisie">Ouvrir ma saisie</button>':'')
+   +(adm?' <button class="btn gold sm" data-act="unlockAll" data-id="'+esc(ADM.openId)+'">Tout déverrouiller</button>':'')
+   +(adm?' <button class="btn ghost sm" data-act="resetDevice" data-id="'+esc(ADM.openId)+'">Autoriser un nouvel appareil</button>':'')
    +(adm?' <button class="btn danger sm" data-act="resetAll" data-id="'+esc(ADM.openId)+'">Tout remettre à zéro</button>':'')
    +'</div>';
 
@@ -1593,6 +1670,7 @@ function renderAdmDetail(){
        +'<td>'+(r.fin?'<span class="badge done">FIN COURS</span>':'<span class="badge">en cours</span>')+'</td>';
       if(adm){
         h+='<td><button class="btn ghost sm" data-act="edit" data-key="'+esc(k)+'">Modifier</button> '
+         +(recLocked(r)?'<button class="btn gold sm" data-act="unlockEC" data-key="'+esc(k)+'">Déverrouiller</button> ':'')
          +'<button class="btn danger sm" data-act="resetEC" data-key="'+esc(k)+'">Remettre à zéro</button></td>';
       }
       h+='</tr>';
@@ -1630,6 +1708,8 @@ function admEditorRow(k, info, r){
   h+='</tbody></table></div>'
    +'<label style="margin-top:10px"><input type="checkbox" id="admFin" '+(r.fin?"checked":"")+'> '
    +'Élément clôturé (mention FIN COURS)</label>'
+   +'<label><input type="checkbox" id="admLock" '+(recLocked(r)?"checked":"")+'> '
+   +'Séances verrouillées (l\'enseignant ne peut plus les modifier)</label>'
    +'<div class="row" style="margin-top:12px">'
    +'<button class="btn sm" data-act="saveEC">Enregistrer les modifications</button> '
    +'<button class="btn ghost sm" data-act="addRow">Ajouter une séance</button> '
@@ -1678,6 +1758,51 @@ function admResetAll(id){
     "Toutes les heures déclarées par <b>"+esc(nom)+"</b> seront effacées, sur tous les niveaux et semestres. Cette action est irréversible.",
     function(){ admWrite(id, {}, "Progression entièrement remise à zéro."); }, "Tout remettre à zéro");
 }
+function unlockRec(r){
+  var out=JSON.parse(JSON.stringify(r||{}));
+  out.s = out.s || {};
+  Object.keys(out.s).forEach(function(n){ out.s[n].locked=false; });
+  out.fin=false; out.finDate=null;
+  return out;
+}
+function admUnlockEC(id, k){
+  var x=admDoc(id); if(!x) return;
+  var data=x.d.data||{};
+  if(!data[k]){ toast("Aucune séance à déverrouiller."); return; }
+  var info=ecInfo(k);
+  confirmBox("Déverrouillage d'un élément constitutif",
+    "Les séances de <b>"+esc(info?info.ecCode:k)+"</b> seront déverrouillées et la mention FIN COURS levée. "
+    +"L'enseignant pourra de nouveau les modifier.",
+    function(){
+      var d=JSON.parse(JSON.stringify(data));
+      d[k]=unlockRec(d[k]);
+      admWrite(id, d, "Élément constitutif déverrouillé.");
+    }, "Déverrouiller");
+}
+function admUnlockAll(id){
+  var x=admDoc(id); if(!x) return;
+  var nom=((x.d.nom||"")+" "+(x.d.prenom||"")).trim()||id;
+  confirmBox("Déverrouillage complet",
+    "Toutes les séances déclarées par <b>"+esc(nom)+"</b> seront déverrouillées et les mentions FIN COURS levées.",
+    function(){
+      var d=JSON.parse(JSON.stringify(x.d.data||{}));
+      Object.keys(d).forEach(function(k){ d[k]=unlockRec(d[k]); });
+      admWrite(id, d, "Progression entièrement déverrouillée.");
+    }, "Tout déverrouiller");
+}
+function admResetDevice(id){
+  var x=admDoc(id); if(!x) return;
+  var nom=((x.d.nom||"")+" "+(x.d.prenom||"")).trim()||id;
+  confirmBox("Autoriser un nouvel appareil",
+    "La fiche de <b>"+esc(nom)+"</b> sera libérée de l'appareil auquel elle est actuellement associée. "
+    +"Le prochain appareil depuis lequel cet enseignant se connectera et enregistrera une donnée en deviendra le nouveau propriétaire.",
+    function(){
+      db.collection("declarations").doc(id).set({uid:null}, {merge:true}).then(function(){
+        toast("Un nouvel appareil pourra désormais synchroniser cette fiche.");
+        loadAllProgressions();
+      }).catch(function(error){ toast("Échec de l'opération: "+(error.message||error)); });
+    }, "Autoriser");
+}
 function admDeleteUser(id){
   if(!isAdminUser()){ toast("Action réservée à l'administrateur."); return; }
   var x=admDoc(id); if(!x) return;
@@ -1695,15 +1820,16 @@ function admSaveEC(id, k){
   var x=admDoc(id); if(!x) return;
   var box=$("admEdit"); if(!box) return;
   var trs=box.querySelectorAll("#admRows tr[data-n]");
+  var fin = !!($("admFin") && $("admFin").checked);
+  var lock = !!($("admLock") && $("admLock").checked);
   var s={}, n=1, total=0;
   for(var i=0;i<trs.length;i++){
     var hi=trs[i].querySelector(".admH"), di=trs[i].querySelector(".admD");
     var v=round2(Math.max(0, Math.min(MAX_H, num(hi?hi.value:0, 0))));
     if(v<=0) continue;
-    s[n]={h:v, date:(di&&di.value)?di.value:today(), locked:true};
+    s[n]={h:v, date:(di&&di.value)?di.value:today(), locked:lock};
     total+=v; n++;
   }
-  var fin = !!($("admFin") && $("admFin").checked);
   var prev = (x.d.data||{})[k] || {};
   var data=JSON.parse(JSON.stringify(x.d.data||{}));
   if(!Object.keys(s).length && !fin){ delete data[k]; }
@@ -1726,6 +1852,9 @@ function admHandle(ev){
   else if(act==="delUser"){ admDeleteUser(id); }
   else if(act==="resetAll"){ admResetAll(id); }
   else if(act==="resetEC"){ admResetEC(ADM.openId, key); }
+  else if(act==="unlockEC"){ admUnlockEC(ADM.openId, key); }
+  else if(act==="unlockAll"){ admUnlockAll(id); }
+  else if(act==="resetDevice"){ admResetDevice(id); }
   else if(act==="edit"){ ADM.editKey = (ADM.editKey===key ? null : key); renderAdmDetail(); }
   else if(act==="cancelEdit"){ ADM.editKey=null; renderAdmDetail(); }
   else if(act==="saveEC"){ admSaveEC(ADM.openId, ADM.editKey); }
@@ -1761,6 +1890,7 @@ if($("btnAdmLogin")) $("btnAdmLogin").addEventListener("click", function(){
       return;
     }
     toast("Session administrateur ouverte.");
+    show("scProg");
   }).catch(function(error){
     admErr("ERREUR: connexion refusée ("+(error.message||error)+").");
   });
@@ -1772,6 +1902,9 @@ if($("btnAdmLogout")) $("btnAdmLogout").addEventListener("click", function(){
   }).catch(function(){});
 });
 if($("btnProgRefresh")) $("btnProgRefresh").addEventListener("click", function(){ loadAllProgressions(); });
+if($("btnProg")) $("btnProg").addEventListener("click", function(){ loadAllProgressions(); show("scProg"); });
+if($("btnAdmOpen")) $("btnAdmOpen").addEventListener("click", function(){ loadAllProgressions(); show("scProg"); });
+if($("btnProgBack")) $("btnProgBack").addEventListener("click", function(){ show(S.user ? "scFiliere" : "scLogin"); });
 if($("admPass")) $("admPass").addEventListener("keydown", function(ev){
   if(ev.key==="Enter") $("btnAdmLogin").click();
 });
