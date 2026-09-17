@@ -802,16 +802,25 @@ $("btnLogin").addEventListener("click", function(){
     btn.disabled=false;
     finishLogin(nom, pre, gr);
   }).catch(function(error){
-    if(error && error.code==="auth/user-not-found"){
+    /* Selon la version de Firebase Auth (protection anti-énumération), un compte
+       inexistant peut renvoyer "auth/user-not-found" (ancien comportement) ou
+       "auth/invalid-credential"/"auth/invalid-login-credentials" (comportement
+       récent). Dans tous ces cas on tente de créer le compte, à la 1ère connexion. */
+    if(error && (error.code==="auth/user-not-found" || error.code==="auth/invalid-credential" || error.code==="auth/invalid-login-credentials")){
       auth.createUserWithEmailAndPassword(email, pass).then(function(){
         btn.disabled=false;
         finishLogin(nom, pre, gr);
       }).catch(function(err2){
         btn.disabled=false;
-        e.textContent="ERREUR: création du compte impossible ("+(err2.message||err2)+").";
+        if(err2 && err2.code==="auth/email-already-in-use"){
+          /* Le compte existe déjà: le mot de passe saisi était en réalité incorrect. */
+          e.textContent="ERREUR: mot de passe incorrect pour ce nom et ce prénom.";
+        } else {
+          e.textContent="ERREUR: création du compte impossible ("+(err2.message||err2)+").";
+        }
         e.classList.add("on");
       });
-    } else if(error && error.code==="auth/wrong-password"){
+    } else if(error && (error.code==="auth/wrong-password")){
       btn.disabled=false;
       e.textContent="ERREUR: mot de passe incorrect pour ce nom et ce prénom.";
       e.classList.add("on");
