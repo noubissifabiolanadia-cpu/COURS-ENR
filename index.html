@@ -481,6 +481,7 @@ td input[type=number]{padding:6px 8px; font-size:.82rem; width:88px}
         <button class="btn sm" id="btnAdmLogin">Connexion administrateur</button>
         <button class="btn ghost sm" id="btnAdmLogout" style="display:none">Fermer la session administrateur</button>
         <button class="btn ghost sm" id="btnProgRefresh">Actualiser</button>
+        <button class="btn danger sm" id="btnResetAllProg" style="display:none">Réinitialiser toutes les progressions</button>
         <button class="btn ghost sm" id="btnProgBack">Retour</button>
       </div>
       <div class="err" id="admErr"></div>
@@ -1591,6 +1592,7 @@ function renderAdminState(){
   if(creds) creds.style.display = adm ? "none" : "block";
   if($("btnAdmLogin")) $("btnAdmLogin").style.display = adm ? "none" : "inline-flex";
   if($("btnAdmLogout")) $("btnAdmLogout").style.display = adm ? "inline-flex" : "none";
+  if($("btnResetAllProg")) $("btnResetAllProg").style.display = adm ? "inline-flex" : "none";
   if(who){
     who.innerHTML = adm
       ? '<span class="badge done">Administrateur</span> Session ouverte au nom de <b>'+esc(u.email)+'</b>.'
@@ -1845,6 +1847,37 @@ function admDeleteUser(id){
       }).catch(function(error){ toast("Échec de la suppression: "+(error.message||error)); });
     }, "Supprimer");
 }
+function admResetAllProgressions(){
+  if(!isAdminUser()){ toast("Action réservée à l'administrateur."); return; }
+  if(!db){ toast("Base partagée indisponible."); return; }
+  if(!ADM.docs.length){ toast("Aucune progression enregistrée à réinitialiser."); return; }
+  var n=ADM.docs.length;
+  confirmBox("Réinitialisation générale des progressions",
+    "Toutes les heures déclarées par <b>l'ensemble des enseignants ("+n+")</b> seront effacées, sur tous les niveaux et semestres. "
+    +"Les comptes enseignants restent inchangés (ils pourront se reconnecter normalement), seules les heures déclarées sont remises à zéro. "
+    +"Cette action est irréversible.",
+    function(){
+      var batch = db.batch();
+      ADM.docs.forEach(function(x){
+        batch.set(db.collection("declarations").doc(x.id), {
+          data:{}, majLe:cloudTS(), majPar:(auth.currentUser && auth.currentUser.email)||"administrateur"
+        }, {merge:true});
+      });
+      batch.commit().then(function(){
+        if(S.user){
+          S.data={};
+          try{ localStorage.setItem(userKey(), JSON.stringify(S.data)); }catch(e){}
+        }
+        ADM.openId=null;
+        toast(n+" progression(s) réinitialisée(s).");
+        loadAllProgressions();
+        refreshCurrentScreen();
+      }).catch(function(error){
+        toast("Échec de la réinitialisation: "+(error.message||error));
+      });
+    }, "Tout réinitialiser");
+}
+if($("btnResetAllProg")) $("btnResetAllProg").addEventListener("click", admResetAllProgressions);
 function admSaveEC(id, k){
   var x=admDoc(id); if(!x) return;
   var box=$("admEdit"); if(!box) return;
